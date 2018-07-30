@@ -66,6 +66,6 @@ hit_counts = hit_counts %>%
 
 For reference, there are `r sum(hit_counts$line_counts)` hits to the list of cell lines, with `r sum(hit_counts$control_counts)` matching either 'control', 'ctrl' or 'DMSO'.
 
-```{r}
+```{r,echo=F}
 knitr::kable(hit_counts)
 ```

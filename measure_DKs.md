@@ -53,10 +53,6 @@ Cell Line Count Table
 
 For reference, there are 1035 hits to the list of cell lines, with 230 matching either 'control', 'ctrl' or 'DMSO'.
 
-``` r
-knitr::kable(hit_counts)
-```
-
 | cell\_line |  line\_counts|  control\_counts|
 |:-----------|-------------:|----------------:|
 | A549       |           514|              140|
