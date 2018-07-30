@@ -43,11 +43,15 @@ for (this_line in cell_line) {
 }
 hit_counts = as.data.frame(hit_counts)
 
-hit_counts = hit_counts %>% select(cell_line,line_counts,control_counts) %>% arrange(desc(control_counts))
+hit_counts = hit_counts %>% 
+  select(cell_line,line_counts,control_counts) %>% 
+  arrange(desc(control_counts))
 ```
 
 Cell Line Count Table
 =====================
+
+For reference, there are 1035 hits to the list of cell lines, with 230 matching either 'control', 'ctrl' or 'DMSO'.
 
 ``` r
 knitr::kable(hit_counts)
