@@ -36,3 +36,4 @@ vignettes/*.pdf
 rsconnect/
 
 human_matrix.h5
+.Rproj.user
