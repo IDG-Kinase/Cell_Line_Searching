@@ -152,7 +152,7 @@ knitr::kable(summary_kinase_expression)
 
 ## All Hits Experiment Data Sets
 
-Let's also go ahead and look at all the cell line hits, without regard to passing the "control" filters (¯\_(ツ)_/¯, yolo). This one should be taken with a grain of salt as who knows how these cells were treated (if you want to thumb through the experiments though, let me know). 
+Let's also go ahead and look at all the cell line hits, without regard to passing the "control" filters (¯\\\_(ツ)\_/¯, yolo). This one should be taken with a grain of salt as who knows how these cells were treated (if you want to thumb through the experiments though, let me know). 
 
 For reference, `r sum(hit_counts$line_counts > 0)` cell lines have at 
 
@@ -193,7 +193,7 @@ summary_kinase_expression_all = kinase_all_data %>%
   arrange(desc(dark_kinase_count))
 ```
 
-## Control Expression Table
+## All Hits Expression Table
 
 ```{r, echo=F}
 knitr::kable(summary_kinase_expression_all)

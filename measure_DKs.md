@@ -169,7 +169,7 @@ Control Expression Table
 All Hits Experiment Data Sets
 -----------------------------
 
-Let's also go ahead and look at all the cell line hits, without regard to passing the "control" filters (¯\_(ツ)\_/¯, yolo). This one should be taken with a grain of salt as who knows how these cells were treated (if you want to thumb through the experiments though, let me know).
+Let's also go ahead and look at all the cell line hits, without regard to passing the "control" filters (¯\\\_(ツ)\_/¯, yolo). This one should be taken with a grain of salt as who knows how these cells were treated (if you want to thumb through the experiments though, let me know).
 
 For reference, 20 cell lines have at
 
@@ -217,8 +217,8 @@ summary_kinase_expression_all = kinase_all_data %>%
   arrange(desc(dark_kinase_count))
 ```
 
-Control Expression Table
-------------------------
+All Hits Expression Table
+-------------------------
 
 | name    |  light\_kinase\_count|  dark\_kinase\_count|  experiment\_count|
 |:--------|---------------------:|--------------------:|------------------:|
@@ -248,4 +248,4 @@ proc.time() - processing_start_time
 ```
 
     ##    user  system elapsed 
-    ##  61.096   4.834  66.255
+    ##  60.019   4.506  64.525
