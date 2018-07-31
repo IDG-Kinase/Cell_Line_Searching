@@ -4,19 +4,29 @@ output: github_document
 ---
 
 ```{r libraries, echo=F, include=F}
+processing_start_time <- proc.time()
 library(rhdf5)
 library(tidyverse)
 ```
 
-```{r download, include=F, eval=F}
-download.file('https://s3.amazonaws.com/mssm-seq-matrix/human_matrix.h5','human_matrix.h5')
+```{r download, include=F}
+if (! file.exists('human_matrix.h5')) {
+  download.file('https://s3.amazonaws.com/mssm-seq-matrix/human_matrix.h5','human_matrix.h5')
+}
 ```
 
-```{r loading, include=F}
+```{r loading, include=F, cache=T}
 meta_data = h5read('human_matrix.h5','/meta')
 ```
 
 # Cell Line Counts
+
+Step one is to try to get a handle on how many experiments have data concerning each of our cell lines of interest, the following code attempt to extract two sets of data from the ARCHS4 data:
+
+* The experiments that appear to contain data from the cell line
+* Of those experiments, which appear to be some sort of "control" experiment
+
+This is just a quick pass through the data using exact text matching for the cell line names, if these string happen to show up in an identification string that experiment will be marked. The "control" experiment extraction is a filtered sub-set for each cell line where the string control, ctrl or DMSO (all case-insensitive) appears.
 
 ```{r processing}
 cell_line = c("AsPC1","BxPC3","Capan1","Capan2","CFPAC-1","HPAF-II","Hs766T",
@@ -31,28 +41,34 @@ cell_line_data = as.data.frame(
               "Sample_title",
               "Sample_geo_accession")])
 
-hit_sets = list()
+control_hit_sets = list()
+line_hit_sets = list()
 hit_counts = list()
 
 for (this_line in cell_line) {
-  title_hits = cell_line_data %>%
+  line_hits = cell_line_data %>%
     filter(grepl(this_line,Sample_title,ignore.case = T) |
            grepl(this_line,Sample_characteristics_ch1,ignore.case = T) |
            grepl(this_line,Sample_description,ignore.case = T) |
            grepl(this_line,Sample_source_name_ch1,ignore.case = T))
   
-  control_hits = title_hits %>%
+  control_hits = line_hits %>%
     filter(grepl('control|ctrl|DMSO',Sample_title,ignore.case = T) |
            grepl('control|ctrl|DMSO',Sample_characteristics_ch1,ignore.case = T) |
            grepl('control|ctrl|DMSO',Sample_description,ignore.case = T) |
            grepl('control|ctrl|DMSO',Sample_source_name_ch1,ignore.case = T))
   
-  hit_sets$this_line = c(hit_sets$this_line,this_line)
-  hit_sets$title = c(hit_sets$title,title_hits)
-  hit_sets$control = c(hit_sets$control,control_hits)
+  if (dim(line_hits)[1] > 0) {
+    line_hit_sets[[this_line]] = line_hits  
+  }
+  
+  if (dim(control_hits)[1] > 0) {
+    control_hit_sets[[this_line]] = control_hits  
+    
+  }
   
   hit_counts$cell_line = c(hit_counts$cell_line, this_line)
-  hit_counts$line_counts = c(hit_counts$line_counts, dim(title_hits)[1])
+  hit_counts$line_counts = c(hit_counts$line_counts, dim(line_hits)[1])
   hit_counts$control_counts = c(hit_counts$control_counts, dim(control_hits)[1])
 }
 hit_counts = as.data.frame(hit_counts)
@@ -62,10 +78,127 @@ hit_counts = hit_counts %>%
   arrange(desc(control_counts))
 ```
 
-# Cell Line Count Table
+## Cell Line Count Table
 
 For reference, there are `r sum(hit_counts$line_counts)` hits to the list of cell lines, with `r sum(hit_counts$control_counts)` matching either 'control', 'ctrl' or 'DMSO'.
 
 ```{r,echo=F}
 knitr::kable(hit_counts)
+```
+
+# Kinase Expression
+
+So now we have a set of experiments and we want to look at the kinase expression for each cell line. To simplify the data I'm simply going to take the average expression reported for each cell line, ignoring any variation from experiment set to experiment set.
+
+```{r loading_expression, include=F}
+expression = h5read('human_matrix.h5','/data/expression')
+```
+
+```{r expression_processing, include=F}
+#cut down the expression kinase list to 
+library(DarkKinaseTools)
+expression = expression[which(meta_data$gene_hgnc %in% all_kinases$hgnc_id),]
+gc()
+
+gene_names = meta_data$genes[which(meta_data$gene_hgnc %in% all_kinases$hgnc_id)]
+hgnc_id = meta_data$gene_hgnc[which(meta_data$gene_hgnc %in% all_kinases$hgnc_id)]
+```
+
+## "Control" Experiment Data Sets
+
+Let's start with the experiments marked as controls, we have `r sum(hit_counts$control_counts> 0)` cell lines have at least one "control" experiment.
+
+```{r}
+kinase_control_data = list()
+for (this_line in names(control_hit_sets)) {
+  this_line_expression = expression[,which(meta_data$Sample_geo_accession %in% control_hit_sets[[this_line]]$Sample_geo_accession)]
+  
+  kinase_control_data$name = c(kinase_control_data$name,rep(this_line,length(gene_names)))
+  kinase_control_data$gene_names = c(kinase_control_data$gene_names,gene_names)
+  kinase_control_data$hgnc_id = c(kinase_control_data$hgnc_id,hgnc_id)
+  
+  if (class(this_line_expression) == 'matrix') {
+    kinase_control_data$expression = c(kinase_control_data$expression,rowMeans(this_line_expression))
+    kinase_control_data$experiment_count = c(kinase_control_data$experiment_count,
+                                        rep(dim(this_line_expression)[2],length(gene_names)))
+  } else {
+    kinase_control_data$expression = c(kinase_control_data$expression,this_line_expression)
+    kinase_control_data$experiment_count = c(kinase_control_data$experiment_count,
+                                        rep(1,length(gene_names)))
+
+  }
+}
+
+kinase_control_data = as.data.frame(kinase_control_data)
+
+kinase_control_data = left_join(kinase_control_data, all_kinases)
+
+summary_kinase_expression = kinase_control_data %>% 
+  #remove all the genes with fewer than 200 pseudo-counts
+  filter(expression > 200) %>%
+  group_by(name) %>% 
+  summarise(light_kinase_count = sum(class == "Light"),
+            dark_kinase_count = sum(class == "Dark"),
+            experiment_count = mean(experiment_count)) %>%
+  arrange(desc(dark_kinase_count))
+```
+
+## Control Expression Table
+
+```{r, echo=F}
+knitr::kable(summary_kinase_expression)
+```
+
+
+## All Hits Experiment Data Sets
+
+Let's also go ahead and look at all the cell line hits, without regard to passing the "control" filters (¯\_(ツ)_/¯, yolo). This one should be taken with a grain of salt as who knows how these cells were treated (if you want to thumb through the experiments though, let me know). 
+
+For reference, `r sum(hit_counts$line_counts > 0)` cell lines have at 
+
+Let's start with the experiments marked as controls, we have  cell lines have at least one experiment.
+
+```{r}
+kinase_all_data = list()
+for (this_line in names(line_hit_sets)) {
+  this_line_expression = expression[,which(meta_data$Sample_geo_accession %in% line_hit_sets[[this_line]]$Sample_geo_accession)]
+  
+  kinase_all_data$name = c(kinase_all_data$name,rep(this_line,length(gene_names)))
+  kinase_all_data$gene_names = c(kinase_all_data$gene_names,gene_names)
+  kinase_all_data$hgnc_id = c(kinase_all_data$hgnc_id,hgnc_id)
+  
+  if (class(this_line_expression) == 'matrix') {
+    kinase_all_data$expression = c(kinase_all_data$expression,rowMeans(this_line_expression))
+    kinase_all_data$experiment_count = c(kinase_all_data$experiment_count,
+                                        rep(dim(this_line_expression)[2],length(gene_names)))
+  } else {
+    kinase_all_data$expression = c(kinase_all_data$expression,this_line_expression)
+    kinase_all_data$experiment_count = c(kinase_all_data$experiment_count,
+                                        rep(1,length(gene_names)))
+
+  }
+}
+
+kinase_all_data = as.data.frame(kinase_all_data)
+
+kinase_all_data = left_join(kinase_all_data, all_kinases)
+
+summary_kinase_expression_all = kinase_all_data %>% 
+  #remove all the genes with fewer than 200 pseudo-counts
+  filter(expression > 200) %>%
+  group_by(name) %>% 
+  summarise(light_kinase_count = sum(class == "Light"),
+            dark_kinase_count = sum(class == "Dark"),
+            experiment_count = mean(experiment_count)) %>%
+  arrange(desc(dark_kinase_count))
+```
+
+## Control Expression Table
+
+```{r, echo=F}
+knitr::kable(summary_kinase_expression_all)
+```
+
+```{r processing_time}
+proc.time() - processing_start_time
 ```
